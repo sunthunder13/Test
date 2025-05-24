@@ -1,0 +1,503 @@
+{% extends 'app/home.html' %}
+{% load tz %}
+{% block content %}
+<html>
+<head>
+  <title>📊 POS Record</title>
+  <style>
+    :root {
+      --bg: #f4f4f4;
+      --text: #333;
+      --card-bg: #fff;
+      --navbar-bg: #2c3e50;
+      --sidebar-bg: #2c3e50;
+      --highlight: #1abc9c;
+    }
+
+    body.dark-mode {
+      --bg: #1e1e1e;
+      --text: #f4f4f4;
+      --card-bg: #2c2c2c;
+      --navbar-bg: #111;
+      --sidebar-bg: #111;
+      --highlight: #27ae60;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+    }
+
+    .navbar {
+      background-color: var(--navbar-bg);
+      color: #fff;
+      padding: 15px 20px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      position: sticky;
+      top: 0;
+      z-index: 999;
+      justify-content: space-between;
+    }
+
+    .navbar-left {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .navbar button {
+      background: none;
+      border: none;
+      color: #fff;
+      font-size: 24px;
+      cursor: pointer;
+    }
+
+    .toggle-darkmode {
+      font-size: 20px;
+      background: none;
+      border: none;
+      color: #fff;
+      cursor: pointer;
+    }
+
+    .container {
+      display: flex;
+    }
+
+    .sidebar {
+      width: 250px;
+      background-color: var(--sidebar-bg);
+      color: #fff;
+      padding: 20px;
+      height: 100vh;
+      overflow-y: auto;
+      position: fixed;
+      top: 60px;
+      left: 0;
+      transition: transform 0.3s ease;
+    }
+
+    .sidebar.hidden {
+      transform: translateX(-100%);
+    }
+
+    .sidebar h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      font-size: 20px;
+    }
+
+    .sidebar p {
+      text-align: center;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+
+    .sidebar ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .sidebar ul li {
+      margin: 10px 0;
+    }
+
+    .sidebar ul li a {
+      color: #fff;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      background-color: #34495e;
+      border-radius: 5px;
+      transition: background 0.3s;
+    }
+
+    .sidebar ul li a:hover {
+      background-color: var(--highlight);
+    }
+
+    .main-content {
+      margin-left: 250px;
+      padding: 20px;
+      transition: margin-left 0.3s;
+      width: 100%;
+    }
+
+    .sidebar.hidden ~ .main-content {
+      margin-left: 0;
+    }
+    
+    h1 {
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+
+
+    .summary-cards {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .summary-cards .card {
+      flex: 1;
+      min-width: 200px;
+      background-color: #fff;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      font-size: 16px;
+      line-height: 1.6;
+    }
+
+    .sales { border-left: 6px solid #3498db; }
+    .badorder { border-left: 6px solid #3498db; }
+    .expenses { border-left: 6px solid #e74c3c; }
+    .inventory { border-left: 6px solid #f39c12; }
+    .profit { border-left: 6px solid #2ecc71; }
+
+    .filters {
+      display: flex;
+      gap: 10px;
+      margin: 20px 0;
+      flex-wrap: wrap;
+    }
+
+    .filters input,
+    .filters button {
+      padding: 10px;
+      font-size: 15px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+
+    .filters button {
+      background-color: #1abc9c;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    .filters button:hover {
+      background-color: #16a085;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background-color: #fff;
+      border-radius: 10px;
+      margin-bottom: 30px;
+      overflow: hidden;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    table th, table td {
+      border: 1px solid #ddd;
+      padding: 12px;
+      text-align: left;
+    }
+
+    table th {
+      background-color: #f4f4f4;
+    }
+
+    table tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+
+    table tr:hover {
+      background-color: #f1f1f1;
+    }
+  </style>
+</head>
+<body>
+  <div class="navbar">
+    <div class="navbar-left">
+      <button onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+      <h1>📊 POS Record</h1>
+    </div>
+    <div>
+      <span style="margin-right: 16px;">👤 {{ request.user.username }}</span>
+      <button class="toggle-darkmode" onclick="toggleDarkMode()" id="modeBtn">🌙</button>
+    </div>
+  </div>
+  <div class="container">
+    <div class="sidebar" id="sidebar">
+      <h2>🧾 POS SYSTEM</h2>
+      <p><i class="fas fa-user-shield"></i> Admin Panel</p>
+      <ul>
+        <li><a href="{% url 'home' %}"><i class="fas fa-home"></i> Dashboard</a></li>
+        <li><a href="{% url 'sales' %}"><i class="fas fa-cash-register"></i> Sales</a></li>
+        <li><a href="{% url 'inventory' %}"><i class="fas fa-boxes"></i> Inventory</a></li>
+        <li><a href="{% url 'expenses' %}"><i class="fas fa-money-bill-wave"></i> Expenses</a></li>
+        <li><a href="{% url 'record' %}" class="active"><i class="fas fa-file-alt"></i> Record</a></li>
+        <li><a href="{% url 'signout' %}"><i class="fas fa-sign-out-alt"></i> Sign Out</a></li>
+      </ul>
+    </div>
+
+    <div class="main-content">
+      <h1>📊 Summary Report</h1>
+      <p><strong>Date Today:</strong> {% now "F d, Y" %}</p>
+
+      <div class="summary-cards">
+        <div class="card sales">Total Sales<br><strong>P {{ total_sales|floatformat:2 }}</strong></div>
+        <div class="card badorder">Total Bad-Orders<br><strong>P {{ total_bad_orders_price|floatformat:2 }}</strong></div>
+        <div class="card expenses">Total Expenses<br><strong>P {{ total_expenses|floatformat:2 }}</strong></div>
+        <div class="card inventory">Inventory Value<br><strong>P {{ inventory_total_value|floatformat:2 }}</strong></div>
+        <div class="card profit">Net Profit<br>
+          <strong>
+            P {{ net_profit|floatformat:2 }}
+          </strong>
+        </div>
+      </div>
+
+     
+      <div class="filters">
+        <form method="get" style="display:flex;gap:10px;flex-wrap:wrap;" id="filter-form">
+          <label for="from_date" style="align-self:center;">Date Range:</label>
+          <input type="date" id="from_date" name="from_date" value="{{ from_date }}" placeholder="From Date">
+          <span style="align-self:center;">to</span>
+          <input type="date" id="to_date" name="to_date" value="{{ to_date }}" placeholder="To Date">
+          <a href="#" id="reset-btn" style="padding:10px 15px;border-radius:5px;background:#ccc;color:#222;text-decoration:none;">Reset</a>
+          <button type="button" id="download-btn" style="padding:10px 15px;border-radius:5px;background:#1abc9c;color:#fff;border:none;">Download</button>
+        </form>
+      </div>
+      <script>
+        document.addEventListener('DOMContentLoaded', function() {
+          // Realtime filter: submit form on date change
+          const fromDate = document.getElementById('from_date');
+          const toDate = document.getElementById('to_date');
+          const filterForm = document.getElementById('filter-form');
+          const resetBtn = document.getElementById('reset-btn');
+          function submitFilter() {
+            filterForm.submit();
+          }
+          if (fromDate) fromDate.addEventListener('change', submitFilter);
+          if (toDate) toDate.addEventListener('change', submitFilter);
+
+          // Reset button: set both dates to today and submit
+          if (resetBtn) {
+            resetBtn.addEventListener('click', function(e) {
+              e.preventDefault();
+              const today = new Date();
+              const yyyy = today.getFullYear();
+              const mm = String(today.getMonth() + 1).padStart(2, '0');
+              const dd = String(today.getDate()).padStart(2, '0');
+              const todayStr = `${yyyy}-${mm}-${dd}`;
+              fromDate.value = todayStr;
+              toDate.value = todayStr;
+              filterForm.submit();
+            });
+          }
+        });
+      </script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+      <script>
+        document.addEventListener('DOMContentLoaded', function() {
+          const downloadBtn = document.getElementById('download-btn');
+          if (downloadBtn) {
+            downloadBtn.addEventListener('click', function() {
+              const { jsPDF } = window.jspdf;
+              const doc = new jsPDF('p', 'mm', 'a4');
+
+              // Title and header
+              doc.setFontSize(18);
+              doc.setTextColor(40, 40, 40);
+              doc.text("POS Sales & Inventory Report", 105, 15, { align: "center" });
+
+              // Date Range Logic
+              const fromDate = document.querySelector('input[name="from_date"]').value;
+              const toDate = document.querySelector('input[name="to_date"]').value;
+              let dateRange = "All Dates";
+              let fileName = "report";
+              if (fromDate && toDate) {
+                if (fromDate === toDate) {
+                  dateRange = `Date: ${fromDate}`;
+                  fileName = `Summary_Report_${fromDate}`;
+                } else {
+                  dateRange = `From: ${fromDate} To: ${toDate}`;
+                  fileName = `Summary_Report_${fromDate}_to_${toDate}`;
+                }
+              } else if (fromDate) {
+                dateRange = `From: ${fromDate}`;
+                fileName = `Summary_Report_from_${fromDate}`;
+              } else if (toDate) {
+                dateRange = `To: ${toDate}`;
+                fileName = `Summary_Report_to_${toDate}`;
+              } else {
+                fileName = "report_all_dates";
+              }
+              doc.setFontSize(11);
+              doc.setTextColor(80, 80, 80);
+              doc.text(dateRange, 105, 23, { align: "center" });
+
+              // Sales & Expense Report Table
+              const salesTable = Array.from(document.querySelectorAll('h2')).find(h2 => h2.textContent.includes('Sales & Expense Report'));
+              let salesRows = [];
+              if (salesTable) {
+                const table = salesTable.nextElementSibling;
+                if (table && table.tagName === 'TABLE') {
+                  table.querySelectorAll('tbody tr').forEach(tr => {
+                    const tds = tr.querySelectorAll('td');
+                    if (tds.length === 5 && !tds[0].hasAttribute('colspan')) {
+                      salesRows.push([
+                        tds[0].innerText,
+                        tds[1].innerText,
+                        tds[2].innerText,
+                        tds[3].innerText,
+                        tds[4].innerText
+                      ]);
+                    }
+                  });
+                }
+              }
+              doc.autoTable({
+                startY: 30,
+                head: [['Date', 'Total Sales', 'Total Bad Orders', 'Total Expenses', 'Net Profit']],
+                body: salesRows,
+                styles: { fontSize: 10, cellPadding: 2 },
+                headStyles: { fillColor: [26, 188, 156], textColor: 255, fontStyle: 'bold' },
+                alternateRowStyles: { fillColor: [240, 240, 240] },
+                margin: { left: 10, right: 10 }
+              });
+
+              // Inventory Summary Table
+              let y = doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : 40;
+              doc.setFontSize(14);
+              doc.setTextColor(40, 40, 40);
+              doc.text("Inventory Summary", 105, y, { align: "center" });
+
+              const inventoryTable = Array.from(document.querySelectorAll('h2')).find(h2 => h2.textContent.includes('Inventory Summary'));
+              let inventoryRows = [];
+              if (inventoryTable) {
+                const table = inventoryTable.nextElementSibling;
+                if (table && table.tagName === 'TABLE') {
+                  table.querySelectorAll('tbody tr').forEach(tr => {
+                    const tds = tr.querySelectorAll('td');
+                    if (tds.length === 5 && !tds[0].hasAttribute('colspan')) {
+                      inventoryRows.push([
+                        tds[0].innerText, // Date
+                        tds[1].innerText, // Product
+                        tds[2].innerText, // Quantity
+                        tds[3].innerText, // Cost per Unit
+                        tds[4].innerText  // Total Value
+                      ]);
+                    }
+                  });
+                }
+              }
+              doc.autoTable({
+                startY: y + 5,
+                head: [['Date', 'Product', 'Quantity', 'Cost per Unit', 'Total Value']],
+                body: inventoryRows,
+                styles: { fontSize: 10, cellPadding: 2 },
+                headStyles: { fillColor: [52, 152, 219], textColor: 255, fontStyle: 'bold' },
+                alternateRowStyles: { fillColor: [245, 245, 245] },
+                margin: { left: 10, right: 10 }
+              });
+
+              // Footer
+              const pageCount = doc.internal.getNumberOfPages();
+              for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(9);
+                doc.setTextColor(150, 150, 150);
+                doc.text(`Page ${i} of ${pageCount}`, 200, 290, { align: "right" });
+                doc.text("Generated by POS System", 10, 290);
+              }
+
+              doc.save(`${fileName}.pdf`);
+            });
+          }
+        });
+      </script>
+    
+      <h2>🧾 Sales & Expense Report</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Total Sales</th>
+            <th>Total Bad Orders</th>
+            <th>Total Expenses</th>
+            <th>Net Profit</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for record in record_history %}
+          <tr>
+            <td>{{ record.date }}</td>
+            <td>P {{ record.total_sales|floatformat:2 }}</td>
+            <td>P {{ record.total_bad_orders|floatformat:2 }}</td>
+            <td>P {{ record.total_expenses|floatformat:2 }}</td>
+            <td>P {{ record.net_profit|floatformat:2 }}</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="5" style="text-align:center;">No records found.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <h2>📦 Inventory Summary</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Product</th>
+            <th>Quantity</th>
+            <th>Cost per Unit</th>
+            <th>Total Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in inventory_summary %}
+          <tr>
+            <td>{{ item.date }}</td>
+            <td>{{ item.product_name }}</td>
+            <td>{{ item.stock }}</td>
+            <td>P {{ item.retail_price|floatformat:2 }}</td>
+            <td>P {{ item.total_value|floatformat:2 }}</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="5" style="text-align:center;">No inventory data.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <script>
+    function toggleSidebar() {
+      document.getElementById('sidebar').classList.toggle('hidden');
+    }
+
+    function toggleDarkMode() {
+      document.body.classList.toggle('dark-mode');
+      const btn = document.getElementById('modeBtn');
+      btn.textContent = document.body.classList.contains('dark-mode') ? '☀️' : '🌙';
+    }
+  </script>
+</body>
+</html>
+{% endblock content %}
+
+
+
